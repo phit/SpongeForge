@@ -60,7 +60,7 @@ import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import net.minecraftforge.fml.relauncher.FMLRelaunchLog;
 import org.apache.logging.log4j.Level;
-import org.spongepowered.api.command.args.ChildCommandElementExecutor;
+import org.spongepowered.api.command.Command;
 import org.spongepowered.api.item.inventory.ItemStack;
 import org.spongepowered.api.item.inventory.crafting.CraftingGridInventory;
 import org.spongepowered.api.item.recipe.crafting.CraftingRecipe;
@@ -523,8 +523,8 @@ public abstract class MixinSpongeImplHooks {
      * @author Grinch
      */
     @Overwrite
-    public static void registerAdditionalCommands(ChildCommandElementExecutor flagChildren, ChildCommandElementExecutor nonFlagChildren) {
-        nonFlagChildren.register(SpongeForgeCommand.createSpongeModsCommand(), "mods");
+    public static void registerAdditionalCommands(Command.Builder builder) {
+        builder.child(SpongeForgeCommand.createSpongeModsCommand(), "mods");
     }
 
     /**
