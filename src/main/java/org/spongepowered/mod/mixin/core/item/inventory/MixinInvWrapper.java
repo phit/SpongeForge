@@ -26,6 +26,7 @@ package org.spongepowered.mod.mixin.core.item.inventory;
 
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
+import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.wrapper.InvWrapper;
 import org.spongepowered.api.item.inventory.EmptyInventory;
 import org.spongepowered.api.item.inventory.Inventory;
@@ -46,6 +47,7 @@ import org.spongepowered.common.item.inventory.lens.Lens;
 import org.spongepowered.common.item.inventory.lens.SlotProvider;
 import org.spongepowered.common.item.inventory.lens.impl.collections.SlotCollection;
 import org.spongepowered.common.item.inventory.lens.impl.comp.OrderedInventoryLensImpl;
+import org.spongepowered.mod.item.inventory.fabric.IItemHandlerFabric;
 import org.spongepowered.mod.item.inventory.fabric.InvWrapperFabric;
 
 import java.util.ArrayList;
@@ -61,7 +63,7 @@ public abstract class MixinInvWrapper implements MinecraftInventoryAdapter, IMix
     protected SlotCollection slots;
     protected List<Inventory> children = new ArrayList<Inventory>();
     protected Iterable<Slot> slotIterator;
-    private Fabric<InvWrapper> fabric;
+    private Fabric<IItemHandler> fabric;
     protected Lens<IInventory, ItemStack> lens = null;
 
     private List<SlotTransaction> capturedTransactions = new ArrayList<>();
@@ -70,7 +72,7 @@ public abstract class MixinInvWrapper implements MinecraftInventoryAdapter, IMix
     private void init() {
         if (!initalized) {
             initalized = true;
-            this.fabric = new InvWrapperFabric(((InvWrapper)(Object) this));
+            this.fabric = new IItemHandlerFabric(((InvWrapper)(Object) this));
             this.slots = new SlotCollection.Builder().add(this.fabric.getSize()).build();
             this.lens = new OrderedInventoryLensImpl(0, this.fabric.getSize(), 1, slots);
         }
