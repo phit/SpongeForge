@@ -36,9 +36,6 @@ import org.spongepowered.asm.mixin.Implements;
 import org.spongepowered.asm.mixin.Interface;
 import org.spongepowered.asm.mixin.Intrinsic;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.common.interfaces.IMixinInventory;
 import org.spongepowered.common.item.inventory.EmptyInventoryImpl;
 import org.spongepowered.common.item.inventory.adapter.impl.MinecraftInventoryAdapter;
@@ -48,14 +45,13 @@ import org.spongepowered.common.item.inventory.lens.SlotProvider;
 import org.spongepowered.common.item.inventory.lens.impl.collections.SlotCollection;
 import org.spongepowered.common.item.inventory.lens.impl.comp.OrderedInventoryLensImpl;
 import org.spongepowered.mod.item.inventory.fabric.IItemHandlerFabric;
-import org.spongepowered.mod.item.inventory.fabric.InvWrapperFabric;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Mixin(InvWrapper.class)
 @Implements(@Interface(iface = Inventory.class, prefix = "inventory$"))
-public abstract class MixinInvWrapper implements MinecraftInventoryAdapter, IMixinInventory {
+public abstract class MixinInvWrapper implements MinecraftInventoryAdapter<IInventory>, IMixinInventory {
 
     protected EmptyInventory empty;
     protected Inventory parent;

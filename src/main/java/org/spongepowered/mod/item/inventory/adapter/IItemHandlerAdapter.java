@@ -24,22 +24,15 @@
  */
 package org.spongepowered.mod.item.inventory.adapter;
 
-import net.minecraft.inventory.IInventory;
-import net.minecraft.item.ItemStack;
 import net.minecraftforge.items.IItemHandler;
-import org.spongepowered.common.item.inventory.adapter.InventoryAdapter;
-import org.spongepowered.common.item.inventory.lens.Lens;
+import org.spongepowered.common.item.inventory.adapter.impl.ItemStackInventoryAdapter;
+import org.spongepowered.mod.item.inventory.fabric.IItemHandlerFabric;
 
-public class IItemHandlerAdapter implements InventoryAdapter<IItemHandler, net.minecraft.item.ItemStack> {
-    private final IItemHandler inventory;
-
+/**
+ * Basic Wrapper Adapter for {@link IItemHandler}
+ */
+public class IItemHandlerAdapter extends ItemStackInventoryAdapter<IItemHandler> {
     public IItemHandlerAdapter(IItemHandler inventory) {
-        this.inventory = inventory;
+        super(new IItemHandlerFabric(inventory));
     }
-
-    private static Lens<IInventory, ItemStack> generateLens(IItemHandler inventory) {
-        return null;
-    }
-
-
 }

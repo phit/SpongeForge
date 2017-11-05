@@ -48,6 +48,7 @@ import org.spongepowered.common.event.SpongeCommonEventFactory;
 import org.spongepowered.common.interfaces.IMixinInventory;
 import org.spongepowered.common.item.inventory.EmptyInventoryImpl;
 import org.spongepowered.common.item.inventory.util.InventoryUtil;
+import org.spongepowered.mod.item.inventory.adapter.IItemHandlerAdapter;
 
 import javax.annotation.Nullable;
 
@@ -180,8 +181,7 @@ public abstract class MixinVanillaInventoryCodeHooks {
         if (itemHandler instanceof Inventory) {
             return ((Inventory) itemHandler);
         }
-        // TODO handle IItemHandlers that were not mixed into
-        return new EmptyInventoryImpl(null);
+        return new IItemHandlerAdapter(itemHandler);
     }
 
     private static IMixinInventory forCapture(Object toCapture) {
