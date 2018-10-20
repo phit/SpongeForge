@@ -106,7 +106,8 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
      * if statements.
      */
     @Overwrite
-    public EnumActionResult processRightClickBlock(EntityPlayer player, World worldIn, ItemStack stack, EnumHand hand, BlockPos pos, EnumFacing facing, float hitX, float hitY, float hitZ) {
+    public EnumActionResult processRightClickBlock(EntityPlayer player, World worldIn, ItemStack stack, EnumHand hand, BlockPos
+            pos, EnumFacing facing, float hitX, float hitY, float hitZ) {
         if (this.gameType == GameType.SPECTATOR) {
             TileEntity tileentity = worldIn.getTileEntity(pos);
 
@@ -119,38 +120,45 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
                 }
 
                 if (ilockablecontainer != null) {
+                    // TODO - fire event
                     player.displayGUIChest(ilockablecontainer);
                     return EnumActionResult.SUCCESS;
                 }
             } else if (tileentity instanceof IInventory) {
+                // TODO - fire event
                 player.displayGUIChest((IInventory) tileentity);
                 return EnumActionResult.SUCCESS;
             }
 
             return EnumActionResult.PASS;
-        }
+        } // else { // Sponge - Remove unecessary else
+        // Sponge Start - Create an interact block event before something happens.
         // Store reference of current player's itemstack in case it changes
-        ItemStack oldStack = stack.copy();
-        InteractBlockEvent.Secondary event;
-        BlockSnapshot currentSnapshot = ((org.spongepowered.api.world.World) worldIn).createSnapshot(pos.getX(), pos.getY(), pos.getZ());
+        final ItemStack oldStack = stack.copy();
         final Vector3d hitVec = VecHelper.toVector3d(pos.add(hitX, hitY, hitZ));
-        Sponge.getCauseStackManager().addContext(EventContextKeys.USED_ITEM, ItemStackUtil.snapshotOf(oldStack));
-        Sponge.getCauseStackManager().addContext(EventContextKeys.BLOCK_HIT, currentSnapshot);
+        final BlockSnapshot currentSnapshot = ((org.spongepowered.api.world.World) worldIn).createSnapshot(pos.getX(), pos.getY(), pos.getZ());
         final boolean interactItemCancelled = SpongeCommonEventFactory.callInteractItemEventSecondary(player, oldStack, hand, hitVec, currentSnapshot).isCancelled();
-        event = SpongeCommonEventFactory.createInteractBlockEventSecondary(player, oldStack, hitVec
-                , currentSnapshot, DirectionFacingProvider.getInstance().getKey(facing).get(), hand);
-        if (interactItemCancelled) {
-            event.setUseItemResult(Tristate.FALSE);
-        }
+        final InteractBlockEvent.Secondary event = SpongeCommonEventFactory.createInteractBlockEventSecondary(player, oldStack,
+                hitVec, currentSnapshot, DirectionFacingProvider.getInstance().getKey(facing).get(), hand);
+
+        event.setCancelled(interactItemCancelled);
+
+        // SpongeForge - start
         SpongeToForgeEventData eventData = ((SpongeModEventManager) Sponge.getEventManager()).extendedPost(event, false, false);
+        // SpongeForge - end
+
         if (!ItemStack.areItemStacksEqual(oldStack, this.player.getHeldItem(hand))) {
             SpongeCommonEventFactory.playerInteractItemChanged = true;
         }
+
         SpongeCommonEventFactory.lastInteractItemOnBlockCancelled = event.getUseItemResult() == Tristate.UNDEFINED ? false : !event.getUseItemResult().asBoolean();
 
+        // SpongeForge - start
         TileEntity tileEntity = worldIn.getTileEntity(pos);
+        // SpongeForge - end
+
         if (event.isCancelled()) {
-            final IBlockState state = worldIn.getBlockState(pos);
+            final IBlockState state = (IBlockState) currentSnapshot.getState();
 
             if (state.getBlock() == Blocks.COMMAND_BLOCK) {
                 // CommandBlock GUI opens solely on the client, we need to force it close on cancellation
@@ -165,14 +173,15 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
                     this.player.connection.sendPacket(new SPacketBlockChange(worldIn, pos.down()));
                 }
 
-            } else if (!stack.isEmpty()) {
+            } else if (!oldStack.isEmpty()) {
                 // Stopping the placement of a door or double plant causes artifacts (ghosts) on the top-side of the block. We need to remove it
-                if (stack.getItem() instanceof ItemDoor || (stack.getItem() instanceof ItemBlock && ((ItemBlock) stack.getItem()).getBlock()
-                    .equals(Blocks.DOUBLE_PLANT))) {
+                final Item item = oldStack.getItem();
+                if (item instanceof ItemDoor || (item instanceof ItemBlock && ((ItemBlock) item).getBlock().equals(Blocks.DOUBLE_PLANT))) {
                     this.player.connection.sendPacket(new SPacketBlockChange(worldIn, pos.up(2)));
                 }
             }
 
+            // SpongeForge - start
             // Some mods such as OpenComputers open a GUI on client-side
             // To workaround this, we will always send a SPacketCloseWindow to client if interacting with a TE
             // However, we skip closing under two circumstances:
@@ -198,29 +207,27 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
             if (tileEntity != null && this.player.openContainer instanceof ContainerPlayer && (eventData == null || !eventData.getForgeEvent().isCanceled())) {
                 this.player.closeScreen();
             }
+            // SpongeForge - end
+
             SpongeCommonEventFactory.interactBlockRightClickEventCancelled = true;
+
             ((EntityPlayerMP) player).sendContainerToPlayer(player.inventoryContainer);
             return EnumActionResult.FAIL;
         }
+        // Sponge end
 
-        net.minecraft.item.Item item = stack.isEmpty() ? null : stack.getItem();
-        EnumActionResult ret = item == null || event.getUseItemResult() == Tristate.FALSE
-                               ? EnumActionResult.PASS
-                               : item.onItemUseFirst(player, worldIn, pos, facing, hitX, hitY, hitZ, hand);
-        if (ret != EnumActionResult.PASS) {
-            return ret;
-        }
-
+        // SpongeForge - start use Item#doesSneakBypassUse
         boolean bypass = true;
         final ItemStack[] itemStacks = {player.getHeldItemMainhand(), player.getHeldItemOffhand()};
         for (ItemStack s : itemStacks) {
             bypass = bypass && (s.isEmpty() || s.getItem().doesSneakBypassUse(s, worldIn, pos, player));
         }
+        // SpongeForge - end
 
         EnumActionResult result = EnumActionResult.PASS;
 
-        if (!player.isSneaking() || bypass || event.getUseBlockResult() == Tristate.TRUE) {
-            // Check event useBlockResult, and revert the client if it's FALSE.
+        if (!player.isSneaking() || bypass || event.getUseBlockResult() == Tristate.TRUE) { // SpongeForge - use bypass field
+            // Sponge start - Check event useBlockResult, and revert the client if it's FALSE.
             // also, store the result instead of returning immediately
             if (event.getUseBlockResult() != Tristate.FALSE) {
                 IBlockState iblockstate = worldIn.getBlockState(pos);
@@ -240,6 +247,7 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
                 this.player.connection.sendPacket(new SPacketBlockChange(this.world, pos));
                 result = TristateUtil.toActionResult(event.getUseItemResult());
 
+                // SpongeForge - start
                 // Same issue as above with OpenComputers
                 // This handles the event not cancelled and block not activated
                 // We only run this if the event was changed. If the event wasn't changed,
@@ -247,17 +255,23 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
                 if (result != EnumActionResult.SUCCESS && tileEntity != null && hand == EnumHand.MAIN_HAND) {
                     this.player.closeScreen();
                 }
+                // SpongeForge - end
             }
         }
 
-        // store result instead of returning
         if (stack.isEmpty()) {
-            result = EnumActionResult.PASS;
+            return EnumActionResult.PASS;
         } else if (player.getCooldownTracker().hasCooldown(stack.getItem())) {
-            result = EnumActionResult.PASS;
-        } else if (stack.getItem() instanceof ItemBlock && ((ItemBlock) stack.getItem()).getBlock() instanceof BlockCommandBlock && !player.canUseCommand(2, "")) {
-            result = EnumActionResult.FAIL;
+            return EnumActionResult.PASS;
+        } else if (stack.getItem() instanceof ItemBlock) {
+            Block block = ((ItemBlock)stack.getItem()).getBlock();
+
+            if ((block instanceof BlockCommandBlock || block instanceof BlockStructure) && !player.canUseCommandBlock()) {
+                return EnumActionResult.FAIL;
+            }
         } else {
+            // SpongeForge - start
+            // Use the stored result
             if ((result != EnumActionResult.SUCCESS && event.getUseItemResult() != Tristate.FALSE || result == EnumActionResult.SUCCESS && event.getUseItemResult() == Tristate.TRUE)) {
                 int meta = stack.getMetadata();
                 int size = stack.getCount();
@@ -268,6 +282,7 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
                     stack.setCount(size);
                 }
             }
+            // SpongeForge - end
         }
 
         if (!ItemStack.areItemStacksEqual(player.getHeldItem(hand), oldStack) || result != EnumActionResult.SUCCESS) {
@@ -275,5 +290,6 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
         }
         return result;
         // Sponge end
+        // } // Sponge - Remove unecessary else bracket
     }
 }
