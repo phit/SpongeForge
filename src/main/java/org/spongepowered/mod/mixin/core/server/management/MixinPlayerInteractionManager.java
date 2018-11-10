@@ -56,9 +56,9 @@ import net.minecraft.world.GameType;
 import net.minecraft.world.ILockableContainer;
 import net.minecraft.world.World;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
-import net.minecraftforge.fml.common.eventhandler.Event;
 import org.spongepowered.api.Sponge;
 import org.spongepowered.api.block.BlockSnapshot;
+import org.spongepowered.api.event.Event;
 import org.spongepowered.api.event.block.InteractBlockEvent;
 import org.spongepowered.api.event.cause.EventContextKey;
 import org.spongepowered.api.event.cause.EventContextKeys;
@@ -71,6 +71,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 import org.spongepowered.common.SpongeImpl;
 import org.spongepowered.common.event.SpongeCommonEventFactory;
@@ -134,6 +135,7 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
             }
 
             return EnumActionResult.PASS;
+
         } // else { // Sponge - Remove unecessary else
         // Sponge Start - Create an interact block event before something happens.
         // Store reference of current player's itemstack in case it changes
@@ -154,7 +156,7 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
             SpongeCommonEventFactory.playerInteractItemChanged = true;
         }
 
-        SpongeCommonEventFactory.lastInteractItemOnBlockCancelled = event.getUseItemResult() == Tristate.UNDEFINED ? false : !event.getUseItemResult().asBoolean();
+        SpongeCommonEventFactory.lastInteractItemOnBlockCancelled = event.isCancelled() || event.getUseItemResult() == Tristate.FALSE;
 
         // SpongeForge - start
         TileEntity tileEntity = worldIn.getTileEntity(pos);
@@ -233,7 +235,7 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
             // Sponge start - Check event useBlockResult, and revert the client if it's FALSE.
             // also, store the result instead of returning immediately
             if (event.getUseBlockResult() != Tristate.FALSE) {
-                IBlockState iblockstate = worldIn.getBlockState(pos);
+                IBlockState iblockstate = (IBlockState) currentSnapshot.getState();
                 Container lastOpenContainer = player.openContainer;
 
                 if (iblockstate.getBlock().onBlockActivated(worldIn, pos, iblockstate, player, hand, facing, hitX, hitY, hitZ)) {
@@ -296,117 +298,5 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
         // } // Sponge - Remove unecessary else bracket
     }
 
-    /**
-     * @reason Rewrite the firing of interact events with forge hooks
-     */
-    @Overwrite
-    public EnumActionResult processRightClick(EntityPlayer player, net.minecraft.world.World worldIn, ItemStack stack, EnumHand hand) {
-        if (this.gameType == GameType.SPECTATOR) {
-            return EnumActionResult.PASS;
-        }
-
-        // Sponge - start
-        final ItemStack oldStack = stack.copy();
-        final BlockSnapshot currentSnapshot = BlockSnapshot.NONE;
-        final boolean interactItemCancelled = SpongeCommonEventFactory.callInteractItemEventSecondary(player, oldStack, hand, null, currentSnapshot).isCancelled();
-        final InteractBlockEvent.Secondary event = SpongeCommonEventFactory.createInteractBlockEventSecondary(player, oldStack,
-                null, currentSnapshot, Direction.NONE, hand);
-
-        event.setCancelled(interactItemCancelled);
-
-        // SpongeForge - start
-        SpongeToForgeEventData eventData = ((SpongeModEventManager) Sponge.getEventManager()).extendedPost(event, false, false);
-        // SpongeForge - end
-
-        if (!ItemStack.areItemStacksEqual(oldStack, this.player.getHeldItem(hand))) {
-            SpongeCommonEventFactory.playerInteractItemChanged = true;
-        }
-
-        SpongeCommonEventFactory.lastInteractItemOnBlockCancelled = event.isCancelled() || event.getUseItemResult() == Tristate.FALSE;
-
-        if (event.isCancelled()) {
-            SpongeCommonEventFactory.interactBlockRightClickEventCancelled = true;
-
-            ((EntityPlayerMP) player).sendContainerToPlayer(player.inventoryContainer);
-            return EnumActionResult.FAIL;
-        }
-        // Sponge End
-
-        if (stack.isEmpty()) {
-            return EnumActionResult.PASS;
-        } else if (player.getCooldownTracker().hasCooldown(stack.getItem())) {
-            return EnumActionResult.PASS;
-        }
-
-
-        int i = stack.getCount();
-        int j = stack.getMetadata();
-        ActionResult<ItemStack> actionresult = stack.useItemRightClick(worldIn, player, hand);
-        ItemStack itemstack = actionresult.getResult();
-
-        if (itemstack == stack && itemstack.getCount() == i && itemstack.getMaxItemUseDuration() <= 0 && itemstack.getMetadata() == j) {
-
-            // Sponge - start
-
-            // Sanity checks on the world being used (hey, i don't know the rules about clients...
-            // and if the world is in fact a responsible server world.
-            final EnumActionResult result = actionresult.getType();
-            if (!(worldIn instanceof IMixinWorld) || ((IMixinWorld) worldIn).isFake()) {
-                return result;
-            }
-
-            // Otherwise, let's find out if it's a failed result
-            if (result == EnumActionResult.FAIL && player instanceof EntityPlayerMP) {
-                // Then, go ahead and tell the client about the change.
-                // A few comments about this:
-                // window id of -2 sets the player's inventory slot instead of the "held cursor"
-                // Then, we need to get the slot index for the held item, which is always
-                // playerMP.inventory.currentItem
-                final EntityPlayerMP playerMP = (EntityPlayerMP) player;
-                final SPacketSetSlot packetToSend;
-                if (hand == EnumHand.MAIN_HAND) {
-                    // And here, my friends, is why the offhand slot is so stupid....
-                    packetToSend = new SPacketSetSlot(-2, player.inventory.currentItem, actionresult.getResult());
-                } else {
-                    // This is the type of stupidity that comes from finding out that offhand slots
-                    // are always the last remaining slot index remaining of the player's overall inventory.
-                    // And this has to be done to avoid duplications by inadvertently setting the main hand
-                    // item.
-                    final int offhandSlotIndex = player.inventory.getSizeInventory() - 1;
-                    packetToSend = new SPacketSetSlot(-2, offhandSlotIndex, actionresult.getResult());
-                }
-                // And finally, set the packet.
-                playerMP.connection.sendPacket(packetToSend);
-                // this is a full stop re-sync to the client, code above might not actually matter.
-                playerMP.sendContainerToPlayer(player.inventoryContainer);
-            }
-            // Sponge - end
-
-            return result;
-
-        } else if (actionresult.getType() == EnumActionResult.FAIL && itemstack.getMaxItemUseDuration() > 0 && !player.isHandActive()) {
-            return actionresult.getType();
-        } else {
-            player.setHeldItem(hand, itemstack);
-
-            if (this.isCreative()) {
-                itemstack.setCount(i);
-
-                if (itemstack.isItemStackDamageable()) {
-                    itemstack.setItemDamage(j);
-                }
-            }
-
-            if (itemstack.isEmpty()) {
-                player.setHeldItem(hand, ItemStack.EMPTY);
-            }
-
-            if (!player.isHandActive()) {
-                ((EntityPlayerMP)player).sendContainerToPlayer(player.inventoryContainer);
-            }
-
-            return actionresult.getType();
-        }
-    }
 
 }
