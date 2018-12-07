@@ -142,11 +142,8 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
         final ItemStack oldStack = stack.copy();
         final Vector3d hitVec = VecHelper.toVector3d(pos.add(hitX, hitY, hitZ));
         final BlockSnapshot currentSnapshot = ((org.spongepowered.api.world.World) worldIn).createSnapshot(pos.getX(), pos.getY(), pos.getZ());
-        final boolean interactItemCancelled = SpongeCommonEventFactory.callInteractItemEventSecondary(player, oldStack, hand, hitVec, currentSnapshot).isCancelled();
         final InteractBlockEvent.Secondary event = SpongeCommonEventFactory.createInteractBlockEventSecondary(player, oldStack,
                 hitVec, currentSnapshot, DirectionFacingProvider.getInstance().getKey(facing).get(), hand);
-
-        event.setCancelled(interactItemCancelled);
 
         // SpongeForge - start
         SpongeToForgeEventData eventData = ((SpongeModEventManager) Sponge.getEventManager()).extendedPost(event, false, false);
