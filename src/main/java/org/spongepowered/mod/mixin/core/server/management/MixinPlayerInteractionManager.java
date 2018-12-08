@@ -215,14 +215,20 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
         }
         // Sponge end
 
+        EnumActionResult result = EnumActionResult.PASS;
+
+        if (event.getUseItemResult() != Tristate.FALSE) {
+            result = stack.onItemUseFirst(player, worldIn, pos, hand, facing, hitX, hitY, hitZ);
+            if (result != EnumActionResult.PASS) {
+                return result ;
+            }
+        }
 
         boolean bypass = true;
         final ItemStack[] itemStacks = {player.getHeldItemMainhand(), player.getHeldItemOffhand()};
         for (ItemStack s : itemStacks) {
             bypass = bypass && (s.isEmpty() || s.getItem().doesSneakBypassUse(s, worldIn, pos, player)); // SpongeForge - use Item#doesSneakBypassUse
         }
-
-        EnumActionResult result = EnumActionResult.PASS;
 
         if (!player.isSneaking() || bypass || event.getUseBlockResult() == Tristate.TRUE) {
             // Sponge start - Check event useBlockResult, and revert the client if it's FALSE.
@@ -231,6 +237,8 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
                 IBlockState iblockstate = (IBlockState) currentSnapshot.getState();
                 Container lastOpenContainer = player.openContainer;
 
+                // Don't close client gui based on the result of Block#onBlockActivated
+                // See https://github.com/SpongePowered/SpongeForge/commit/a684cccd0355d1387a30a7fee08d23fa308273c9
                 if (iblockstate.getBlock().onBlockActivated(worldIn, pos, iblockstate, player, hand, facing, hitX, hitY, hitZ)) {
                     result = EnumActionResult.SUCCESS;
                 }
@@ -263,31 +271,42 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
             return EnumActionResult.PASS;
         } else if (player.getCooldownTracker().hasCooldown(stack.getItem())) {
             return EnumActionResult.PASS;
-        } else if (stack.getItem() instanceof ItemBlock) {
+        } else if (stack.getItem() instanceof ItemBlock && !player.canUseCommandBlock()) {
             Block block = ((ItemBlock)stack.getItem()).getBlock();
 
-            if ((block instanceof BlockCommandBlock || block instanceof BlockStructure) && !player.canUseCommandBlock()) {
+            if (block instanceof BlockCommandBlock || block instanceof BlockStructure) {
                 return EnumActionResult.FAIL;
             }
-        } else {
-            // SpongeForge - start
-            // Use the stored result
-            if ((result != EnumActionResult.SUCCESS && event.getUseItemResult() != Tristate.FALSE || result == EnumActionResult.SUCCESS && event.getUseItemResult() == Tristate.TRUE)) {
-                int meta = stack.getMetadata();
-                int size = stack.getCount();
-                result = stack.onItemUse(player, worldIn, pos, hand, facing, hitX, hitY, hitZ);
-                // nest isCreative check instead of calling the method twice.
-                if (this.isCreative()) {
-                    stack.setItemDamage(meta);
-                    stack.setCount(size);
-                }
+        }
+        // else if (this.isCreative()) { // Sponge - Rewrite this to handle an isCreative check after the result, since we have a copied stack at the top of this method.
+        //    int j = stack.getMetadata();
+        //    int i = stack.stackSize;
+        //    EnumActionResult enumactionresult = stack.onItemUse(player, worldIn, pos, hand, facing, offsetX, offsetY, offsetZ);
+        //    stack.setItemDamage(j);
+        //    stack.stackSize = i;
+        //    return enumactionresult;
+        // } else {
+        //    return stack.onItemUse(player, worldIn, pos, hand, facing, offsetX, offsetY, offsetZ);
+        // }
+        // } // Sponge - Remove unecessary else bracket
+        // Sponge Start - complete the method with the micro change of resetting item damage and quantity from the copied stack.
+
+        // SpongeForge - use the stored result
+        if ((result != EnumActionResult.SUCCESS && event.getUseItemResult() != Tristate.FALSE || result == EnumActionResult.SUCCESS && event.getUseItemResult() == Tristate.TRUE)) {
+            int meta = stack.getMetadata();
+            int size = stack.getCount();
+            result = stack.onItemUse(player, worldIn, pos, hand, facing, hitX, hitY, hitZ);
+            // nest isCreative check instead of calling the method twice.
+            if (this.isCreative()) {
+                stack.setItemDamage(meta);
+                stack.setCount(size);
             }
-            // SpongeForge - end
         }
 
         if (!ItemStack.areItemStacksEqual(player.getHeldItem(hand), oldStack) || result != EnumActionResult.SUCCESS) {
             player.openContainer.detectAndSendChanges();
         }
+
         return result;
         // Sponge end
         // } // Sponge - Remove unecessary else bracket
