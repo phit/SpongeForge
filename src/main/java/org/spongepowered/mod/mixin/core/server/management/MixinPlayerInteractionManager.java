@@ -210,7 +210,8 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
             SpongeCommonEventFactory.interactBlockRightClickEventCancelled = true;
 
             ((EntityPlayerMP) player).sendContainerToPlayer(player.inventoryContainer);
-            return EnumActionResult.FAIL;
+
+            return ((PlayerInteractEvent) eventData.getForgeEvent()).getCancellationResult(); // SpongeForge - return event result
         }
         // Sponge end
 
