@@ -155,10 +155,6 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
 
         SpongeCommonEventFactory.lastInteractItemOnBlockCancelled = event.isCancelled() || event.getUseItemResult() == Tristate.FALSE;
 
-        // SpongeForge - start
-        TileEntity tileEntity = worldIn.getTileEntity(pos);
-        // SpongeForge - end
-
         if (event.isCancelled()) {
             final IBlockState state = (IBlockState) currentSnapshot.getState();
 
@@ -206,7 +202,7 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
             //
             // To resolve this issue, we only send a close window packet if the event was not cancelled
             // by a Forge event listener.
-            if (tileEntity != null && this.player.openContainer instanceof ContainerPlayer && (eventData == null || !eventData.getForgeEvent().isCanceled())) {
+            if (worldIn.getTileEntity(pos) != null && this.player.openContainer instanceof ContainerPlayer && (eventData == null || !eventData.getForgeEvent().isCanceled())) {
                 this.player.closeScreen();
             }
             // SpongeForge - end
@@ -218,17 +214,16 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
         }
         // Sponge end
 
-        // SpongeForge - start use Item#doesSneakBypassUse
+
         boolean bypass = true;
         final ItemStack[] itemStacks = {player.getHeldItemMainhand(), player.getHeldItemOffhand()};
         for (ItemStack s : itemStacks) {
-            bypass = bypass && (s.isEmpty() || s.getItem().doesSneakBypassUse(s, worldIn, pos, player));
+            bypass = bypass && (s.isEmpty() || s.getItem().doesSneakBypassUse(s, worldIn, pos, player)); // SpongeForge - use Item#doesSneakBypassUse
         }
-        // SpongeForge - end
 
         EnumActionResult result = EnumActionResult.PASS;
 
-        if (!player.isSneaking() || bypass || event.getUseBlockResult() == Tristate.TRUE) { // SpongeForge - use bypass field
+        if (!player.isSneaking() || bypass || event.getUseBlockResult() == Tristate.TRUE) {
             // Sponge start - Check event useBlockResult, and revert the client if it's FALSE.
             // also, store the result instead of returning immediately
             if (event.getUseBlockResult() != Tristate.FALSE) {
@@ -246,6 +241,8 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
 
                 result = this.handleOpenEvent(lastOpenContainer, this.player, currentSnapshot, result);
             } else {
+                // Need to send a block change to the client, because otherwise, they are not
+                // going to be told about the block change.
                 this.player.connection.sendPacket(new SPacketBlockChange(this.world, pos));
                 result = TristateUtil.toActionResult(event.getUseItemResult());
 
@@ -254,7 +251,7 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
                 // This handles the event not cancelled and block not activated
                 // We only run this if the event was changed. If the event wasn't changed,
                 // we need to keep the GUI open on the client for Forge compatibility.
-                if (result != EnumActionResult.SUCCESS && tileEntity != null && hand == EnumHand.MAIN_HAND) {
+                if (result != EnumActionResult.SUCCESS && worldIn.getTileEntity(pos) != null && hand == EnumHand.MAIN_HAND) {
                     this.player.closeScreen();
                 }
                 // SpongeForge - end
