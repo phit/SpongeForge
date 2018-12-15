@@ -95,11 +95,6 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
     @Shadow(remap = false) public abstract double getBlockReachDistance();
     @Shadow(remap = false) public abstract void setBlockReachDistance(double distance);
 
-    @Inject(method = "onBlockClicked", at = @At(value = "INVOKE", target = "Lnet/minecraft/network/NetHandlerPlayServer;sendPacket"
-        + "(Lnet/minecraft/network/Packet;)V", ordinal = 0))
-    public void onBlockClickCancelled(final BlockPos pos, final EnumFacing side, final CallbackInfo ci) {
-        SpongeCommonEventFactory.interactBlockLeftClickEventCancelled = true;
-    }
 
     /**
      * @author gabizou - May 5th, 2016
