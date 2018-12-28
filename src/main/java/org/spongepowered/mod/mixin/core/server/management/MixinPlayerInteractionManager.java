@@ -75,6 +75,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 import org.spongepowered.common.SpongeImpl;
 import org.spongepowered.common.event.SpongeCommonEventFactory;
+import org.spongepowered.common.event.tracking.PhaseData;
+import org.spongepowered.common.event.tracking.PhaseTracker;
+import org.spongepowered.common.event.tracking.phase.packet.PacketContext;
 import org.spongepowered.common.interfaces.server.management.IMixinPlayerInteractionManager;
 import org.spongepowered.common.interfaces.world.IMixinWorld;
 import org.spongepowered.common.item.inventory.util.ItemStackUtil;
@@ -145,7 +148,8 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
         // SpongeForge - end
 
         if (!ItemStack.areItemStacksEqual(oldStack, this.player.getHeldItem(hand))) {
-            SpongeCommonEventFactory.playerInteractItemChanged = true;
+            final PhaseData peek = PhaseTracker.getInstance().getCurrentPhaseData();
+            ((PacketContext<?>) peek.context).interactItemChanged(true);
         }
 
         SpongeCommonEventFactory.lastInteractItemOnBlockCancelled = event.isCancelled() || event.getUseItemResult() == Tristate.FALSE;
@@ -240,7 +244,8 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
                 // Mods such as StorageDrawers alter the stack on block activation
                 // if itemstack changed, avoid restore
                 if (!ItemStack.areItemStacksEqual(oldStack, this.player.getHeldItem(hand))) {
-                    SpongeCommonEventFactory.playerInteractItemChanged = true;
+                    final PhaseData peek = PhaseTracker.getInstance().getCurrentPhaseData();
+                    ((PacketContext<?>) peek.context).interactItemChanged(true);
                 }
 
                 result = this.handleOpenEvent(lastOpenContainer, this.player, currentSnapshot, result);
