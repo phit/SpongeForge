@@ -110,6 +110,7 @@ public abstract class MixinPlayerInteractionManager implements IMixinPlayerInter
     @Overwrite
     public EnumActionResult processRightClickBlock(EntityPlayer player, World worldIn, ItemStack stack, EnumHand hand, BlockPos
             pos, EnumFacing facing, float hitX, float hitY, float hitZ) {
+        // SpongeVanilla is using the method inside SpongeCommon. Make sure to keep the two methods consistent.
         if (this.gameType == GameType.SPECTATOR) {
             TileEntity tileentity = worldIn.getTileEntity(pos);
 
